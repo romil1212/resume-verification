@@ -9,7 +9,7 @@ const connectDB = require('./config/db');
 // Connect to MongoDB
 connectDB();
 
-// Automatically drop the legacy unique index on startup so users can upload multiple resumes
+// Automatically drop legacy unique index on startup so users can upload multiple resumes
 mongoose.connection.once('open', async () => {
   try {
     const collections = await mongoose.connection.db.listCollections({ name: 'resumes' }).toArray();
@@ -18,7 +18,6 @@ mongoose.connection.once('open', async () => {
       console.log('✅ Legacy unique userId_1 index dropped successfully.');
     }
   } catch (err) {
-    // If the index was already dropped or doesn't exist, safely ignore
     if (err.codeName !== 'IndexNotFound') {
       console.log('[Index Sync Check]:', err.message);
     }
@@ -27,7 +26,7 @@ mongoose.connection.once('open', async () => {
 
 const app = express();
 
-// Ensure the local 'uploads' directory exists
+// Ensure local 'uploads' directory exists
 const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
@@ -38,8 +37,13 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Serve uploaded files statically so users can view and download them
+// Serve uploaded files statically
 app.use('/uploads', express.static(uploadsDir));
+
+// Health check endpoint for Render monitoring
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'OK', timestamp: new Date() });
+});
 
 // Routes
 app.use('/api/auth', require('./routes/authRoutes'));
@@ -54,5 +58,8 @@ app.use((err, req, res, next) => {
   });
 });
 
+// Bind to process.env.PORT and 0.0.0.0 for Render
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`[Server] Active on port ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`[Server] Active and listening on port ${PORT}`);
+});
