@@ -71,7 +71,7 @@ function App() {
 
           {/* Fallback & Index Routes */}
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="*" element={<NotFound />} />
+
         </Routes>
       </main>
 
