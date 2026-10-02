@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const API = axios.create({
-  baseURL: 'https://resume-verification.onrender.com/api',
+  baseURL: 'https://resume-verification-q56y.onrender.com/api',
 });
 
 API.interceptors.request.use((config) => {
