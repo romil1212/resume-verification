@@ -64,10 +64,18 @@ exports.sendOtp = async (req, res) => {
 // 2. Verify OTP & Register
 exports.verifyOtpAndRegister = async (req, res) => {
   try {
-    let { name, email, password, otp } = req.body;
+    let { name, email, password, otp, phoneNumber } = req.body;
 
     if (!name || !email || !password || !otp) {
       return res.status(400).json({ success: false, message: 'All fields and OTP are required' });
+    }
+
+    //2. Validate phoneNumber format (if provided)
+    if(phoneNumber && !/^[0-9]{10}$/.test(phoneNumber)){
+      return res.status(400).json({
+        success: false,
+        message: "phone number must be 10 digits",
+      });
     }
 
     email = email.toLowerCase().trim();
@@ -99,7 +107,9 @@ exports.verifyOtpAndRegister = async (req, res) => {
       name: name.trim(),
       email,
       password: hashedPassword,
-    });
+      //add new :
+      phoneNumber: phoneNumber ? String(phoneNumber).trim() : undefined,
+      });
 
     // Invalidate OTP immediately so it cannot be replayed
     await Otp.deleteOne({ _id: validOtp._id });
@@ -112,7 +122,7 @@ exports.verifyOtpAndRegister = async (req, res) => {
       message: 'Account verified and created successfully!',
       data: {
         token,
-        user: { id: user._id, name: user.name, email: user.email },
+        user: { id: user._id, name: user.name, email: user.email, phoneNumber: user.phoneNumber, },
       },
     });
   } catch (error) {
@@ -144,7 +154,7 @@ exports.login = async (req, res) => {
       message: 'Login successful',
       data: {
         token,
-        user: { id: user._id, name: user.name, email: user.email },
+        user: { id: user._id, name: user.name, email: user.email, phoneNumber: user.phoneNumber, },
       },
     });
   } catch (error) {

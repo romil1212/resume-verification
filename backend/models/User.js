@@ -25,6 +25,13 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: Date.now,
   },
+  
+  phoneNumber: {
+      type: String,
+      trim: true,
+      default: '',
+      match: [/^[0-9]{10}$/, 'Phone number must be exactly 10 digits'],
+    },
 });
 
 module.exports = mongoose.model('User', userSchema);
