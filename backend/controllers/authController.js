@@ -42,11 +42,17 @@ exports.sendOtp = async (req, res) => {
     await Otp.deleteMany({ email });
     await Otp.create({ email, otp });
 
-    // Send email via configured transporter
-    // (Awaited with try/catch to log properly without blocking client progression)
-    sendOtpEmail(email, otp).catch((err) => {
-      console.error('Email dispatch failure notice:', err.message);
-    });
+    // Send email via configured transporter (Awaited to catch dispatch errors)
+    try {
+      await sendOtpEmail(email, otp);
+    } catch (emailError) {
+      console.error('Email dispatch failure notice:', emailError);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to dispatch OTP email. Please ensure email service settings are valid.',
+        error: emailError.message,
+      });
+    }
 
     return res.status(200).json({
       success: true,
@@ -70,11 +76,11 @@ exports.verifyOtpAndRegister = async (req, res) => {
       return res.status(400).json({ success: false, message: 'All fields and OTP are required' });
     }
 
-    //2. Validate phoneNumber format (if provided)
-    if(phoneNumber && !/^[0-9]{10}$/.test(phoneNumber)){
+    // Validate phoneNumber format (if provided, allow standard 9 to 15 digits)
+    if (phoneNumber && !/^[0-9]{9,15}$/.test(String(phoneNumber).trim())) {
       return res.status(400).json({
         success: false,
-        message: "phone number must be 10 digits",
+        message: 'Please enter a valid phone number (9-15 digits)',
       });
     }
 
@@ -107,9 +113,8 @@ exports.verifyOtpAndRegister = async (req, res) => {
       name: name.trim(),
       email,
       password: hashedPassword,
-      //add new :
       phoneNumber: phoneNumber ? String(phoneNumber).trim() : undefined,
-      });
+    });
 
     // Invalidate OTP immediately so it cannot be replayed
     await Otp.deleteOne({ _id: validOtp._id });
@@ -122,7 +127,7 @@ exports.verifyOtpAndRegister = async (req, res) => {
       message: 'Account verified and created successfully!',
       data: {
         token,
-        user: { id: user._id, name: user.name, email: user.email, phoneNumber: user.phoneNumber, },
+        user: { id: user._id, name: user.name, email: user.email, phoneNumber: user.phoneNumber },
       },
     });
   } catch (error) {
@@ -154,7 +159,7 @@ exports.login = async (req, res) => {
       message: 'Login successful',
       data: {
         token,
-        user: { id: user._id, name: user.name, email: user.email, phoneNumber: user.phoneNumber, },
+        user: { id: user._id, name: user.name, email: user.email, phoneNumber: user.phoneNumber },
       },
     });
   } catch (error) {
