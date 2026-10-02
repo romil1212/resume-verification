@@ -10,7 +10,7 @@ import ResumeDetails from './pages/ResumeDetails';
 import Profile from './pages/Profile';
 import ProtectedRoute from './components/ProtectedRoute';
 import VerifyEmail from './pages/VerifyEmail';
-import NotFound from './pages/NotFound';
+
 
 function App() {
   return (
