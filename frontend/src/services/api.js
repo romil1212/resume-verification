@@ -1,7 +1,10 @@
 import axios from 'axios';
 
+// Uses Vite environment variable if set, otherwise defaults to the EC2 backend URL
+const API_URL = import.meta.env?.VITE_API_BASE_URL || 'http://3.27.225.67:5000/api';
+
 const API = axios.create({
-  baseURL: 'https://resume-verification-q56y.onrender.com/api',
+  baseURL: API_URL,
 });
 
 API.interceptors.request.use((config) => {
@@ -12,4 +15,4 @@ API.interceptors.request.use((config) => {
   return config;
 });
 
-export default API;// force redeploy 
+export default API;
