@@ -51,7 +51,7 @@ app.use('/uploads', express.static(uploadsDir));
 app.get('/', (req, res) => {
   res.status(200).json({
     success: true,
-    message: 'Resume Verification API is running smoothly',
+    message: 'CI/CD pipeline test: Backend updated successfully!',
     timestamp: new Date().toISOString()
   });
 });
