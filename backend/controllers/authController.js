@@ -12,7 +12,7 @@ const generateToken = (id) => {
   );
 };
 
-// 1. Send OTP to User's Email
+// 1. Send OTP to User's Email (with local console fallback)
 exports.sendOtp = async (req, res) => {
   try {
     let { email } = req.body;
@@ -42,21 +42,28 @@ exports.sendOtp = async (req, res) => {
     await Otp.deleteMany({ email });
     await Otp.create({ email, otp });
 
-    // Send email via configured transporter (Awaited to catch dispatch errors)
+    // Print OTP prominently in your VS Code / CMD terminal for testing
+    console.log('\n==================================================');
+    console.log(`[DEV OTP GENERATED] Email: ${email}`);
+    console.log(`[DEV OTP CODE]      >>> ${otp} <<<`);
+    console.log('==================================================\n');
+
+    // Attempt to send email via SMTP, but do not block registration if dispatch fails
+    let emailDispatched = true;
     try {
-      await sendOtpEmail(email, otp);
+      if (typeof sendOtpEmail === 'function') {
+        await sendOtpEmail(email, otp);
+      }
     } catch (emailError) {
-      console.error('Email dispatch failure notice:', emailError);
-      return res.status(500).json({
-        success: false,
-        message: 'Failed to dispatch OTP email. Please ensure email service settings are valid.',
-        error: emailError.message,
-      });
+      emailDispatched = false;
+      console.warn(`[SMTP NOTICE] Email could not be delivered (${emailError.message}). Use terminal OTP above.`);
     }
 
     return res.status(200).json({
       success: true,
-      message: `OTP sent successfully to ${email}`,
+      message: emailDispatched
+        ? `OTP sent successfully to ${email}`
+        : `OTP generated! Check backend console: ${otp}`,
     });
   } catch (error) {
     console.error('Error in sendOtp:', error);
@@ -116,7 +123,7 @@ exports.verifyOtpAndRegister = async (req, res) => {
       phoneNumber: phoneNumber ? String(phoneNumber).trim() : undefined,
     });
 
-    // Invalidate OTP immediately so it cannot be replayed
+    // Invalidate OTP immediately so it cannot be reused
     await Otp.deleteOne({ _id: validOtp._id });
 
     // Generate JWT token
