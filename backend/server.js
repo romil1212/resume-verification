@@ -51,7 +51,7 @@ app.use('/uploads', express.static(uploadsDir));
 app.get('/', (req, res) => {
   res.status(200).json({
     success: true,
-    message: 'CI/CD pipeline test: Backend updated successfully!',
+    message: 'CI/CD Automated Deployment is 100% Verified!',
     timestamp: new Date().toISOString()
   });
 });
