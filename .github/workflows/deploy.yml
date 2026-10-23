@@ -28,39 +28,39 @@ jobs:
 
       - name: Deploy to AWS EC2 via SSH
         uses: appleboy/ssh-action@v1.0.3
+        env:
+          GEMINI_KEY: ${{ secrets.GEMINI_API_KEY }}
+          ELASTIC_SECRET: ${{ secrets.ELASTIC_PASS }}
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
           envs: GEMINI_KEY,ELASTIC_SECRET
-        env:
-          GEMINI_KEY: ${{ secrets.GEMINI_API_KEY }}
-          ELASTIC_SECRET: ${{ secrets.ELASTIC_PASS }}
-        script: |
-          echo "Pulling latest Docker image from Docker Hub..."
-          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/resume-backend:latest
+          script: |
+            echo "Pulling latest Docker image from Docker Hub..."
+            docker pull ${{ secrets.DOCKERHUB_USERNAME }}/resume-backend:latest
 
-          echo "Stopping existing backend container..."
-          docker stop resume-api || true
-          docker rm resume-api || true
+            echo "Stopping existing backend container..."
+            docker stop resume-api || true
+            docker rm resume-api || true
 
-          echo "Running updated backend container..."
-          docker run -d \
-            --name resume-api \
-            --network resume-network \
-            --restart always \
-            -p 5000:5000 \
-            -e PORT=5000 \
-            -e MONGODB_URI="mongodb://mongodb:27017/resume_verification_db" \
-            -e MONGO_URI="mongodb://mongodb:27017/resume_verification_db" \
-            -e JWT_SECRET="7234cb347e575d282a9f1b30404d1916a247ce65210125cc9779474a94523454" \
-            -e JWT_ACCESS_SECRET="7234cb347e575d282a9f1b30404d1916a247ce65210125cc9779474a94523454" \
-            -e GEMINI_API_KEY="$GEMINI_KEY" \
-            -e ELASTIC_HOST="smtp.elasticemail.com" \
-            -e ELASTIC_PORT="2525" \
-            -e ELASTIC_USER="rthummar1313@gmail.com" \
-            -e ELASTIC_PASS="$ELASTIC_SECRET" \
-            ${{ secrets.DOCKERHUB_USERNAME }}/resume-backend:latest
+            echo "Running updated backend container..."
+            docker run -d \
+              --name resume-api \
+              --network resume-network \
+              --restart always \
+              -p 5000:5000 \
+              -e PORT=5000 \
+              -e MONGODB_URI="mongodb://mongodb:27017/resume_verification_db" \
+              -e MONGO_URI="mongodb://mongodb:27017/resume_verification_db" \
+              -e JWT_SECRET="7234cb347e575d282a9f1b30404d1916a247ce65210125cc9779474a94523454" \
+              -e JWT_ACCESS_SECRET="7234cb347e575d282a9f1b30404d1916a247ce65210125cc9779474a94523454" \
+              -e GEMINI_API_KEY="$GEMINI_KEY" \
+              -e ELASTIC_HOST="smtp.elasticemail.com" \
+              -e ELASTIC_PORT="2525" \
+              -e ELASTIC_USER="rthummar1313@gmail.com" \
+              -e ELASTIC_PASS="$ELASTIC_SECRET" \
+              ${{ secrets.DOCKERHUB_USERNAME }}/resume-backend:latest
 
-          echo "Cleaning unused Docker images..."
-          docker image prune -f
+            echo "Cleaning unused Docker images..."
+            docker image prune -f
