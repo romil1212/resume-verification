@@ -5,6 +5,7 @@ import API from '../services/api';
 const Register = () => {
   const [formData, setFormData] = useState({
     name: '',
+    username: '',
     email: '',
     phoneNumber: '',
     password: '',
@@ -26,6 +27,12 @@ const Register = () => {
 
     if (!formData.name.trim()) {
       return setError('Please enter your full name.');
+    }
+    if (!formData.username.trim()) {
+      return setError('Please enter a username.');
+    }
+    if (!/^[a-zA-Z0-9_]{3,20}$/.test(formData.username.trim())) {
+      return setError('Username must be 3-20 characters (letters, numbers, underscores only).');
     }
     if (!formData.email.trim()) {
       return setError('Please enter a valid email address.');
@@ -70,6 +77,7 @@ const Register = () => {
     try {
       const res = await API.post('/auth/verify-register', {
         name: formData.name.trim(),
+        username: formData.username.trim().toLowerCase(),
         email: formData.email.trim(),
         phoneNumber: formData.phoneNumber || undefined,
         password: formData.password,
@@ -149,6 +157,24 @@ const Register = () => {
                 value={formData.name}
                 onChange={(e) => {
                   setFormData({ ...formData, name: e.target.value });
+                  if (error) setError('');
+                }}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-700 mb-1.5">
+                Username
+              </label>
+              <input
+                type="text"
+                name="username"
+                required
+                placeholder="e.g. johndoe12"
+                className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-lg text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
+                value={formData.username}
+                onChange={(e) => {
+                  setFormData({ ...formData, username: e.target.value });
                   if (error) setError('');
                 }}
               />

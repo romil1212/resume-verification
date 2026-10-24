@@ -42,7 +42,7 @@ exports.sendOtp = async (req, res) => {
     await Otp.deleteMany({ email });
     await Otp.create({ email, otp });
 
-    // Print OTP prominently in your VS Code / CMD terminal for testing
+    // Print OTP prominently in terminal for local testing
     console.log('\n==================================================');
     console.log(`[DEV OTP GENERATED] Email: ${email}`);
     console.log(`[DEV OTP CODE]      >>> ${otp} <<<`);
@@ -74,13 +74,29 @@ exports.sendOtp = async (req, res) => {
   }
 };
 
-// 2. Verify OTP & Register
+// 2. Verify OTP & Register (Includes username validation and storage)
 exports.verifyOtpAndRegister = async (req, res) => {
   try {
-    let { name, email, password, otp, phoneNumber } = req.body;
+    let { name, username, email, password, otp, phoneNumber } = req.body;
 
-    if (!name || !email || !password || !otp) {
-      return res.status(400).json({ success: false, message: 'All fields and OTP are required' });
+    if (!name || !username || !email || !password || !otp) {
+      return res.status(400).json({
+        success: false,
+        message: 'Name, username, email, password, and OTP are required',
+      });
+    }
+
+    // Sanitize values
+    username = username.toLowerCase().trim();
+    email = email.toLowerCase().trim();
+    otp = otp.toString().trim();
+
+    // Username format check (alphanumeric and underscores, minimum 3 chars)
+    if (!/^[a-zA-Z0-9_]{3,20}$/.test(username)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Username must be 3-20 characters long and contain only letters, numbers, or underscores',
+      });
     }
 
     // Validate phoneNumber format (if provided, allow standard 9 to 15 digits)
@@ -90,9 +106,6 @@ exports.verifyOtpAndRegister = async (req, res) => {
         message: 'Please enter a valid phone number (9-15 digits)',
       });
     }
-
-    email = email.toLowerCase().trim();
-    otp = otp.toString().trim();
 
     if (otp.length !== 6) {
       return res.status(400).json({ success: false, message: 'OTP must be exactly 6 digits' });
@@ -107,9 +120,16 @@ exports.verifyOtpAndRegister = async (req, res) => {
       });
     }
 
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
+    // Check if email is already registered
+    const existingEmail = await User.findOne({ email });
+    if (existingEmail) {
       return res.status(409).json({ success: false, message: 'Email already registered' });
+    }
+
+    // Check if username is already taken
+    const existingUsername = await User.findOne({ username });
+    if (existingUsername) {
+      return res.status(409).json({ success: false, message: 'Username is already taken' });
     }
 
     // Hash password & persist user
@@ -118,6 +138,7 @@ exports.verifyOtpAndRegister = async (req, res) => {
 
     const user = await User.create({
       name: name.trim(),
+      username,
       email,
       password: hashedPassword,
       phoneNumber: phoneNumber ? String(phoneNumber).trim() : undefined,
@@ -134,7 +155,13 @@ exports.verifyOtpAndRegister = async (req, res) => {
       message: 'Account verified and created successfully!',
       data: {
         token,
-        user: { id: user._id, name: user.name, email: user.email, phoneNumber: user.phoneNumber },
+        user: {
+          id: user._id,
+          name: user.name,
+          username: user.username,
+          email: user.email,
+          phoneNumber: user.phoneNumber,
+        },
       },
     });
   } catch (error) {
@@ -143,20 +170,28 @@ exports.verifyOtpAndRegister = async (req, res) => {
   }
 };
 
-// 3. Login
+// 3. Login (Supports logging in with either Email or Username)
 exports.login = async (req, res) => {
   try {
-    let { email, password } = req.body;
+    let { identifier, email, password } = req.body;
 
-    if (!email || !password) {
-      return res.status(400).json({ success: false, message: 'Please provide email and password' });
+    // Accepts either `identifier` (can be email or username) or traditional `email`
+    const loginCredential = (identifier || email || '').toLowerCase().trim();
+
+    if (!loginCredential || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide email/username and password',
+      });
     }
 
-    email = email.toLowerCase().trim();
+    // Find by email or username
+    const user = await User.findOne({
+      $or: [{ email: loginCredential }, { username: loginCredential }],
+    });
 
-    const user = await User.findOne({ email });
     if (!user || !(await bcrypt.compare(password, user.password))) {
-      return res.status(401).json({ success: false, message: 'Invalid email or password' });
+      return res.status(401).json({ success: false, message: 'Invalid credentials' });
     }
 
     const token = generateToken(user._id);
@@ -166,7 +201,13 @@ exports.login = async (req, res) => {
       message: 'Login successful',
       data: {
         token,
-        user: { id: user._id, name: user.name, email: user.email, phoneNumber: user.phoneNumber },
+        user: {
+          id: user._id,
+          name: user.name,
+          username: user.username,
+          email: user.email,
+          phoneNumber: user.phoneNumber,
+        },
       },
     });
   } catch (error) {
