@@ -1,5 +1,6 @@
 const path = require('path');
 const fs = require('fs');
+const mongoose = require('mongoose');
 const Resume = require('../models/Resume');
 const { extractTextFromFile, verifyResumeText } = require('../services/resumeVerification');
 
@@ -23,6 +24,7 @@ const safeDeleteFile = (storedFilePath) => {
   }
 };
 
+// 1. Upload Resume
 exports.uploadResume = async (req, res) => {
   try {
     if (!req.file) {
@@ -41,7 +43,7 @@ exports.uploadResume = async (req, res) => {
     // 2. Verification Logic
     const verificationResults = verifyResumeText(rawText, req.user.name);
 
-    // 3. Save new resume profile to MongoDB (previous resumes are preserved)
+    // 3. Save new resume profile to MongoDB (default isDeleted is false)
     const newResume = await Resume.create({
       userId,
       fileName: req.file.originalname,
@@ -49,6 +51,7 @@ exports.uploadResume = async (req, res) => {
       fileType: fileExt.toUpperCase(),
       fileSize: req.file.size,
       rawText: rawText || '',
+      isDeleted: false,
       ...verificationResults,
     });
 
@@ -66,11 +69,16 @@ exports.uploadResume = async (req, res) => {
   }
 };
 
-// Return ALL resumes belonging to the user so none are lost
+// 2. STEP-2: List API - Return only ACTIVE (non-deleted) resumes for the user
 exports.getMyResume = async (req, res) => {
   try {
     const userId = req.user._id || req.user.id;
-    const resumes = await Resume.find({ userId }).sort({ createdAt: -1 });
+
+    // Filter by userId and strictly exclude records where isDeleted is true
+    const resumes = await Resume.find({
+      userId,
+      isDeleted: false,
+    }).sort({ createdAt: -1 });
 
     res.status(200).json({
       success: true,
@@ -82,13 +90,25 @@ exports.getMyResume = async (req, res) => {
   }
 };
 
+// 3. STEP-3: Get Single Resume - Ensure soft-deleted records return 404
 exports.getResumeById = async (req, res) => {
   try {
+    const { id } = req.params;
     const userId = req.user._id || req.user.id;
-    const resume = await Resume.findOne({ _id: req.params.id, userId });
+
+    // Validate ID format
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid resume ID format' });
+    }
+
+    // Must match ID, owner, and not be deleted
+    const resume = await Resume.findOne({ _id: id, userId, isDeleted: false });
 
     if (!resume) {
-      return res.status(404).json({ success: false, message: 'Resume not found' });
+      return res.status(404).json({
+        success: false,
+        message: 'Resume not found or has already been deleted',
+      });
     }
 
     res.status(200).json({ success: true, data: resume });
@@ -97,19 +117,43 @@ exports.getResumeById = async (req, res) => {
   }
 };
 
+// 4. STEP-1 & STEP-3: Soft-Delete API - Update isDeleted flag instead of removing document
 exports.deleteResume = async (req, res) => {
   try {
+    const { id } = req.params;
     const userId = req.user._id || req.user.id;
-    const resume = await Resume.findOne({ _id: req.params.id, userId });
 
-    if (!resume) {
-      return res.status(404).json({ success: false, message: 'Resume not found' });
+    // Validate ID format (handles malformed IDs in Postman testing)
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid resume ID format',
+      });
     }
 
-    safeDeleteFile(resume.filePath);
-    await Resume.deleteOne({ _id: resume._id });
+    // Atomic update: only find and update if isDeleted is currently false
+    const updatedResume = await Resume.findOneAndUpdate(
+      { _id: id, userId, isDeleted: false },
+      { $set: { isDeleted: true } },
+      { new: true }
+    );
 
-    res.status(200).json({ success: true, message: 'Resume removed successfully from profile' });
+    // Return 404 if record doesn't exist OR was already deleted
+    if (!updatedResume) {
+      return res.status(404).json({
+        success: false,
+        message: 'Resume not found or has already been deleted',
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Resume removed successfully from profile',
+      data: {
+        id: updatedResume._id,
+        isDeleted: updatedResume.isDeleted,
+      },
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

@@ -96,6 +96,14 @@ const resumeSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+
+    // --- STEP 1: SOFT DELETE FLAG ---
+    // Tracks soft deletion status without purging the document from the database
+    isDeleted: {
+      type: Boolean,
+      default: false,
+      index: true, // Single field index for filtering non-deleted records
+    },
   },
   {
     timestamps: true,
@@ -113,5 +121,9 @@ resumeSchema.virtual('downloadUrl').get(function () {
 
 // Compound index for fast queries when sorting a user's resume history
 resumeSchema.index({ userId: 1, createdAt: -1 });
+
+// --- STEP 2: HIGH-PERFORMANCE SOFT DELETE COMPOUND INDEX ---
+// Accelerates list and delete queries scoped by user and non-deleted documents
+resumeSchema.index({ userId: 1, isDeleted: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Resume', resumeSchema);

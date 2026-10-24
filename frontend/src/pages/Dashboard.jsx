@@ -7,6 +7,8 @@ const Dashboard = () => {
   const [resumesList, setResumesList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
+
   const user = JSON.parse(localStorage.getItem('user') || '{}');
 
   const API_HOST = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/api\/?$/, '');
@@ -18,7 +20,9 @@ const Dashboard = () => {
       const list = Array.isArray(res.data?.data)
         ? res.data.data
         : (res.data?.data ? [res.data.data] : []);
-      setResumesList(list);
+      
+      // Step 2: Ensure only active (non-deleted) resumes populate UI state
+      setResumesList(list.filter((item) => !item.isDeleted));
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to load dashboard data.');
     } finally {
@@ -32,16 +36,39 @@ const Dashboard = () => {
 
   const latestResume = resumesList[0] || null;
 
+  // Soft-Delete handler with 404 error interceptor
   const handleDeleteResume = async (id, fileName) => {
-    if (!id) return;
-    const confirmDelete = window.confirm(`Are you sure you want to delete "${fileName || 'this resume'}"?`);
-    if (!confirmDelete) return;
+    const isConfirmed = window.confirm(
+      `Are you sure you want to delete "${fileName || 'this resume'}"?`
+    );
+    if (!isConfirmed) return;
+
+    // Clear previous feedback
+    setError('');
+    setSuccessMsg('');
 
     try {
-      await API.delete(`/resumes/${id}`);
-      setResumesList((prev) => prev.filter((r) => r._id !== id));
+      const res = await API.delete(`/resumes/${id}`);
+
+      // Step 2: Instantly remove soft-deleted record from view
+      setResumesList((prevList) => prevList.filter((resume) => resume._id !== id));
+
+      setSuccessMsg(res.data?.message || 'Resume removed successfully from profile');
     } catch (err) {
-      alert(err.response?.data?.message || 'Failed to remove resume.');
+      // Step 3: Handle 404 if record doesn't exist or is already soft-deleted
+      if (err.response && err.response.status === 404) {
+        setError(
+          err.response.data?.message ||
+          'Resume not found or has already been deleted'
+        );
+        // Clean up stale reference from local state
+        setResumesList((prevList) => prevList.filter((resume) => resume._id !== id));
+      } else {
+        setError(
+          err.response?.data?.message ||
+          'Failed to delete resume. Please try again.'
+        );
+      }
     }
   };
 
@@ -105,9 +132,39 @@ const Dashboard = () => {
         </div>
       </div>
 
+      {/* Step 3: Success Feedback Alert */}
+      {successMsg && (
+        <div className="mb-6 p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm rounded-lg flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <svg className="w-5 h-5 text-emerald-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+            </svg>
+            <span>{successMsg}</span>
+          </div>
+          <button
+            onClick={() => setSuccessMsg('')}
+            className="text-emerald-700 hover:text-emerald-900 font-bold ml-4 cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* Step 3: Error Feedback Alert */}
       {error && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">
-          {error}
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <svg className="w-5 h-5 text-red-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>{error}</span>
+          </div>
+          <button
+            onClick={() => setError('')}
+            className="text-red-700 hover:text-red-900 font-bold ml-4 cursor-pointer"
+          >
+            ✕
+          </button>
         </div>
       )}
 
@@ -279,7 +336,7 @@ const Dashboard = () => {
                 <button
                   type="button"
                   onClick={() => handleDeleteResume(latestResume._id, latestResume.fileName)}
-                  className="w-full py-1.5 bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 text-xs font-semibold rounded-lg transition"
+                  className="w-full py-1.5 bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 text-xs font-semibold rounded-lg transition cursor-pointer"
                 >
                   Delete This Resume
                 </button>
